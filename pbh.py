@@ -11,24 +11,16 @@ from predict_size import predict_size
 from temperature import Hawking_temperature
 
 from numbers import Real, Integral
-from typing import Tuple, Callable
-from nptyping import NDArray
+from typing import Tuple, Callable, Text
+from nptyping import NDArray, Bool
 
-
-@nb.njit(fastmath = True)
-def compute_interp(f, x):
-    y = x.argsort()
-    z = f(x[y])
-    i = np.empty_like(y)
-    i[y] = np.arange(y.size)
-    return z[i]
 
 @nb.njit(fastmath = True)
 def compute_rho(a_star: Real, eps: Real = 1.) -> Real:
     """
     Compute the probability that the black hole spin will increase
 
-    Parameters:
+    Args:
     a_star (Real): the angular momentum of the black hole divided by the 
         mass squared (a_star = J / M**2)
 
@@ -44,20 +36,20 @@ def compute_rho(a_star: Real, eps: Real = 1.) -> Real:
 @timing
 @nb.njit(fastmath = True)
 def compute_evolution(
-    M_init: float,
-    M_final: float,
+    M_init: Real,
+    M_final: Real,
     J_init: Integral,
     compute_T: Callable,
     changes: NDArray,
     rands: NDArray,
     eps: Real = 1,
-    return_path: bool = False,
+    return_path: Bool = False,
 ) -> Tuple:
     """
     Compute the evolution of a (primordial) black hole as it evaporates due 
     to Hawking radiation
 
-    Parameters:
+    Args:
     M_init (Real): the initial mass of the black hole (in Planck masses)
     J_init (Integral): the initial angular momentum of the black hole (in 
         units of h-bar)
@@ -68,7 +60,7 @@ def compute_evolution(
     rands (NDArray):
     eps (Real): tuning parameter used to control the deviation from even
         probability (1/2); use eps = 1. for production results
-    return path (bool): if True, will return the evolution of M, J, a_star, 
+    return_path (bool): if True, will return the evolution of M, J, a_star, 
         rho_plus, T, as well as the rands and changes arrays
 
     Returns:
@@ -145,15 +137,30 @@ def compute_evolution(
 
 
 class PrimordialBlackHole(ABC):
+    """A class representing the evolution of a primordial black hole."""
+
     def __init__(
         self,
-        spacetime: str,
+        spacetime: Text,
         M_init: Real,
         M_final: Real = 1,
         J_init: Real = 0,
         eps: Real = 1,
-        save_path: bool = False,
+        save_path: Bool = False,
     ) -> None:
+        """
+        Initializes a PrimordialBlackHole object.
+
+        Args:
+        spacetime (str): The type of spacetime.
+        M_init (Real): Initial mass of the black hole.
+        M_final (Real, optional): Final mass of the black hole (default is 1).
+        J_init (Real, optional): Initial angular momentum of the black hole 
+            (default is 0).
+        eps (Real, optional): Accuracy parameter (default is 1).
+        save_path (bool, optional): Whether to save the evolution path (default 
+            is False).
+        """
         self.spacetime = spacetime
         self.M_init = M_init
         self.M_final = M_final
@@ -178,13 +185,19 @@ class PrimordialBlackHole(ABC):
 
         CDF_data = load_CDF_data(os.path.join(
             os.path.dirname(os.path.realpath(__file__)),
-            "CDF_data.h5",
+            "data/CDF_data.h5",
         ))
         self.CDF_values = CDF_data[:, 0]
         self.x_values = CDF_data[:, 1]
         self.inv_CDF_interp = spip.CubicSpline(self.CDF_values, self.x_values)
 
     def _construct_rands_array(self) -> None:
+        """
+        Constructs the random array for generating changes in the black 
+        hole angular momentum.
+
+        This method is internal and should not be called directly.
+        """
         current_size = self.rands_array.size
         delta_size = self.N - current_size
         self.rands_array = np.append(
@@ -193,6 +206,11 @@ class PrimordialBlackHole(ABC):
         )
         
     def _construct_changes_array(self) -> None:
+        """
+        Constructs the array for changes in black hole temperature.
+
+        This method is internal and should not be called directly.
+        """
         current_size = self.changes_array.size
         delta_size = self.N - current_size
         self.CDF_rands_array = np.random.default_rng().uniform(
@@ -206,6 +224,12 @@ class PrimordialBlackHole(ABC):
         )
 
     def evolve(self) -> None:
+        """
+        Evolves the primordial black hole over time.
+
+        This method evolves the black hole until it reaches its final 
+        state.
+        """
         self.attempts = 1
         while True:
             self._construct_rands_array()
